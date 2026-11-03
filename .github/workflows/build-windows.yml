@@ -37,25 +37,27 @@ jobs:
             throw "cargo install failed with exit code $LASTEXITCODE"
           }
 
-      - name: Verify executable
+      - name: Verify executable and prepare artifact
         shell: pwsh
         run: |
-          $exe = Join-Path $env:USERPROFILE '.cargo\bin\agentic-memory-mcp.exe'
-          if (-not (Test-Path -LiteralPath $exe)) {
-            throw "Expected executable was not created: $exe"
+          $source = Join-Path $env:USERPROFILE '.cargo\bin\agentic-memory-mcp.exe'
+          if (-not (Test-Path -LiteralPath $source)) {
+            throw "Expected executable was not created: $source"
           }
-          & $exe --help
+          & $source --help
           if ($LASTEXITCODE -ne 0) {
             throw "Executable help check failed with exit code $LASTEXITCODE"
           }
-          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
-          "SHA256: $hash" | Tee-Object -FilePath "$env:GITHUB_STEP_SUMMARY" -Append
-          "Executable size: $([math]::Round((Get-Item -LiteralPath $exe).Length / 1MB, 2)) MB" | Tee-Object -FilePath "$env:GITHUB_STEP_SUMMARY" -Append
+          $destination = Join-Path $env:GITHUB_WORKSPACE 'agentic-memory-mcp-windows-x64.exe'
+          Copy-Item -LiteralPath $source -Destination $destination -Force
+          $hash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash
+          "SHA256: $hash" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Executable size: $([math]::Round((Get-Item -LiteralPath $destination).Length / 1MB, 2)) MB" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
           name: agentic-memory-mcp-windows-x64
-          path: ${{ env.USERPROFILE }}\\.cargo\\bin\\agentic-memory-mcp.exe
+          path: agentic-memory-mcp-windows-x64.exe
           if-no-files-found: error
           retention-days: 7
