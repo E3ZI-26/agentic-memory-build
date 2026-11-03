@@ -1,0 +1,61 @@
+name: Build AgenticMemory MCP (Windows x64)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compile agentic-memory-mcp.exe
+    runs-on: windows-2025
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out build repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Show toolchain
+        shell: pwsh
+        run: |
+          rustc --version
+          cargo --version
+          rustc -vV
+
+      - name: Compile AgenticMemory MCP v0.4.2 with V3
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cargo install agentic-memory-mcp --version 0.4.2 --features v3 --jobs 2 --force
+          if ($LASTEXITCODE -ne 0) {
+            throw "cargo install failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Verify executable
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:USERPROFILE '.cargo\bin\agentic-memory-mcp.exe'
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "Expected executable was not created: $exe"
+          }
+          & $exe --help
+          if ($LASTEXITCODE -ne 0) {
+            throw "Executable help check failed with exit code $LASTEXITCODE"
+          }
+          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+          "SHA256: $hash" | Tee-Object -FilePath "$env:GITHUB_STEP_SUMMARY" -Append
+          "Executable size: $([math]::Round((Get-Item -LiteralPath $exe).Length / 1MB, 2)) MB" | Tee-Object -FilePath "$env:GITHUB_STEP_SUMMARY" -Append
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentic-memory-mcp-windows-x64
+          path: ${{ env.USERPROFILE }}\\.cargo\\bin\\agentic-memory-mcp.exe
+          if-no-files-found: error
+          retention-days: 7
